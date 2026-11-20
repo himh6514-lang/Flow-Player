@@ -1,0 +1,46 @@
+
+name: Build Flow Player APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract source
+        run: |
+          unzip -q flow_player_source_v0.2.zip -d /tmp/flow-src
+          ROOT=$(find /tmp/flow-src -name pubspec.yaml -printf '%h\n' | head -n 1)
+          test -n "$ROOT"
+          cp -a "$ROOT"/. "$GITHUB_WORKSPACE"/
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Generate Android project
+        run: flutter create . --platforms android
+
+      - name: Prepare Android manifest
+        run: |
+          if [ -f tool/patch_android_manifest.py ]; then
+            python3 tool/patch_android_manifest.py
+          fi
+
+      - name: Build APK
+        run: |
+          flutter pub get
+          flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Flow-Player-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
